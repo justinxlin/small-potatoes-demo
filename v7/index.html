@@ -1840,15 +1840,29 @@ var moved=false;
    ========================================================= */
 function stepPassers(dt,t){
   var s=ENT.snail; if(s){ var w=s.wander;
-    if(w.wait>0) w.wait-=dt; else {
+    var talking=(mode==='scene'||mode==='down'||mode==='up');
+    if(w.wait>0 && !talking) w.wait-=dt;
+    else {
+      w.wait=0;
       var dx=w.tx-s.x, dz=w.tz-s.z, L=Math.hypot(dx,dz);
-      if(L<0.12){ w.wait=rr(0.8,2.2); for(var k=0;k<12;k++){ var nx=s.x+rr(-3.2,3.2), nz=s.z+rr(-2.4,2.4); if(canStand(nx,nz)&&!onPier(nx,nz)&&field(nx,nz)>0.8){ w.tx=nx; w.tz=nz; break; } } }
-      else {
-        var sp=0.42*dt, nx2=s.x+dx/L*sp, nz2=s.z+dz/L*sp, blocked=!canStand(nx2,nz2)||!!blockedOther(nx2,nz2,s.col)||Math.hypot(nx2-pot.x,nz2-pot.z)<0.7;
-        if(!blocked && (mode==='scene'||mode==='down')){ var scp=screenOf(new T.Vector3(nx2,1.0,nz2)); var nearCam=Math.hypot(s.x-camera.position.x, s.z-camera.position.z)<7; if(nearCam && scp.z<1 && Math.abs(scp.x-W*0.5)<100 && scp.y>H*0.28 && scp.y<H*0.72) blocked=true; }
-        if(blocked){ var ang=Math.atan2(dz,dx)+(w.turn||1)*1.6; w.turn=-(w.turn||1); w.tx=s.x+Math.cos(ang)*2.4; w.tz=s.z+Math.sin(ang)*2.4; }
-        else { s.x=nx2; s.z=nz2; s.dir=dx; }
+      if(L<0.25){
+        var base=w.heading||Math.atan2(dz,dx||1), picked=false;
+        for(var k=0;k<8 && !picked;k++){
+          var ang=base+(w.turn||1)*(0.9+k*0.5);
+          var nx=s.x+Math.cos(ang)*1.6, nz=s.z+Math.sin(ang)*1.6;
+          if(canStand(nx,nz)&&!onPier(nx,nz)&&field(nx,nz)>0.8&&!blockedOther(nx,nz,s.col)){ w.tx=nx; w.tz=nz; w.heading=ang; picked=true; }
+        }
+        if(!picked) w.turn=-(w.turn||1);
+        dx=w.tx-s.x; dz=w.tz-s.z; L=Math.hypot(dx,dz)||1;
       }
+      var sp=0.42*dt, ang0=Math.atan2(dz,dx), stepped=false;
+      for(var ttry=0;ttry<7 && !stepped;ttry++){
+        var ang2=ang0+(w.turn||1)*ttry*0.7;
+        var nx2=s.x+Math.cos(ang2)*sp, nz2=s.z+Math.sin(ang2)*sp;
+        var bad=!canStand(nx2,nz2)||onPier(nx2,nz2)||!!blockedOther(nx2,nz2,s.col)||Math.hypot(nx2-pot.x,nz2-pot.z)<0.75;
+        if(!bad){ s.x=nx2; s.z=nz2; s.dir=Math.cos(ang2); w.heading=ang2; stepped=true; }
+      }
+      if(!stepped){ w.turn=-(w.turn||1); w.heading=(w.heading||ang0)+w.turn*1.4; w.tx=s.x+Math.cos(w.heading)*1.4; w.tz=s.z+Math.sin(w.heading)*1.4; }
     }
     s.col.x=s.x; s.col.z=s.z; }
   var g=ENT.gull; if(g){
