@@ -313,7 +313,7 @@ var NPC_TXT={
     /* 占位：雾雾开场 6 题（W1/W3/G-I/G-D/G-E/G-A）本版不接；直接用道别第 3 句的「有维度留在迷雾岛」分支交接到阿拼 */
     farewell:['去码头吧，阿拼在等你。我会在雾里跟着你。'],
     revisit:['雾今天淡一些了……是因为你吗？','不急。想回来坐坐，随时都可以。'],
-    sub:'开场 6 题下一版接入'},
+    },
   apin:{name:'阿拼',place:'拼装码头',
     intro:['哟，新面孔！欢迎来到拼装码头！','这些船全是我拼的！哈哈……就是还没一艘下过水。','不说我了！{hero}，你背包里装着啥？'],
     ack:'好嘞，记下了！',
@@ -336,7 +336,7 @@ var NPC_TXT={
     farewell:['谢谢你，说给我听。','第一声是问题，第二声才是答案。','去石根谷吧。小磨的工坊，总是很吵。'],
     revisit:['刚才……好像有一点回声？是我听错了吗。','风铃又响了。不是我，是风。'],
     busy:['嘘……我在听一阵回声。先去找{next_npc}吧，等会儿再来。','风还没停呢，我听不清你。{next_npc}在{next_place}。'],
-    sub:'4 道题下一版接入'},
+    },
   snail:{name:'蜗牛慢慢',place:'拼装码头边',tap:['我在等……最好的那一天。','今天风有点大，还是明天吧。']},
   gull:{name:'漂流瓶海鸥',place:'海边',tap:['又是一封没写完的信。','写信的人，好像总觉得还没想清楚。']},
   star:{name:'星点点',place:'雾里',tap:['嘘……我还没想好要不要出来。','嘘……我还没想好要不要出来。']},
@@ -715,16 +715,18 @@ var vcolStone=lam({vertexColors:true,map:TEX.stone,flatShading:true});
 
 /* --- 场景走廊：每位 NPC 小景的镜头位置，镜头前不放树 --- */
 /* 小景镜头：离 NPC 约 10 米、平视；小土豆站在 NPC 旁边（不挡在镜头前） */
-function mkScene(id,yawDeg,dist,camY,standSide,standBack){
+function mkScene(id,yawDeg,dist,camY,standSide,standBack,lookShare){
   var n=NPCDEF[id], a=yawDeg*Math.PI/180, dx=Math.sin(a), dz=-Math.cos(a);   /* 镜头 → NPC 的方向 */
   var lift=n.float?0.55:0, ny=groundH(n.x,n.z);
-  return {pos:[n.x-dx*dist,ny+camY,n.z-dz*dist], look:[n.x,ny+lift+1.05,n.z], fov:46,
-    stand:[n.x+(-dz)*standSide-dx*standBack, n.z+dx*standSide-dz*standBack]};
+  var sx=n.x+(-dz)*standSide-dx*standBack, sz=n.z+dx*standSide-dz*standBack;
+  var share=lookShare||0;
+  return {pos:[n.x-dx*dist,ny+camY,n.z-dz*dist], look:[n.x+(sx-n.x)*share, ny+lift+1.05, n.z+(sz-n.z)*share], fov:46,
+    stand:[sx,sz]};
 }
 var SCN={
-  apin:mkScene('apin',72,10.5,1.6,1.55,0.15),
+  apin:mkScene('apin',66,11.3,1.7,-0.72,0.95,0.2),
   wuwu:mkScene('wuwu',0,10.5,1.6,1.55,0.12),
-  feng:mkScene('feng',-40,10.5,1.6,1.45,0.15)
+  feng:mkScene('feng',-18,12.0,1.82,1.22,0.2,0.62)
 };
 function inCorridor(x,z,pad){
   for(var k in SCN){ var s=SCN[k], n=NPCDEF[k], ax=s.pos[0], az=s.pos[2], bx=n.x, bz=n.z;
@@ -1199,7 +1201,7 @@ function crownOf(im){
   for(var y=0;y<c.height && !found;y++) for(var x=0;x<c.width;x++){ if(d[(y*c.width+x)*4+3]>24){ top=y; found=true; break; } }
   return found? (1-top/c.height):0.9;
 }
-function freezePotato(){
+function freezePotato(forId){
   if(potFrozen) return;
   var q=potMesh.m.quaternion.clone();
   var eye=new T.Vector3().subVectors(camera.position, potMesh.g.position).normalize().applyQuaternion(q.clone().invert());
@@ -1235,7 +1237,7 @@ function freezePotato(){
   var tex=new T.CanvasTexture(crop); tex.magFilter=T.NearestFilter; tex.minFilter=T.NearestFilter; tex.generateMipmaps=false; tex.colorSpace=T.SRGBColorSpace; tex.needsUpdate=true;
   if(potCard.material.map) potCard.material.map.dispose();
   potCard.material.map=tex; potCard.material.needsUpdate=true;
-  var h=1.02; potCard.scale.set(h*(cw/ch), h, 1);
+  var h=forId==='apin'?0.82:1.02; potCard.scale.set(h*(cw/ch), h, 1);
   potMesh.g.visible=false; potCard.visible=true; potFrozen=true;
 }
 function cpuPotato(q,img){
@@ -1302,6 +1304,7 @@ function initCharacters(IMG){
   star.puff=new T.Sprite(new T.SpriteMaterial({map:fogTex,transparent:true,opacity:0,depthWrite:false})); star.puff.scale.set(1.8,0.9,1); scene.add(star.puff);
   /* 纸船 = 传送点 */
   ENT.boat={id:'boat',kind:'portal',g:paperBoat,bb:null,x:BOATX,z:BOATZ,h:1.4,talkR:2.4,col:null};
+  var sn=ENT.snail; if(sn){ var nf=nearestFree(sn.x, sn.z); sn.x=nf.x; sn.z=nf.z; sn.wander.tx=nf.x+1.2; sn.wander.tz=nf.z; sn.col.x=nf.x; sn.col.z=nf.z; }
 }
 
 /* =========================================================
@@ -1491,12 +1494,14 @@ function flashSlot(k){ var s=slots[k]; s.classList.remove('flash'); void s.offse
 function stateOf(id){ var i=ROUTE.indexOf(id); if(i<0) return 'none'; return i<routeIdx?'done':(i===routeIdx?'active':'busy'); }
 var lastBusy={};
 function pickBusy(id){ var L=NPC_TXT[id].busy||NPC_TXT[id].revisit; var k=Math.floor(Math.random()*L.length); if(L.length>1 && k===lastBusy[id]) k=(k+1)%L.length; lastBusy[id]=k; return L[k]; }
-function showSail(){ if(voyaged||voyage||inputLock) return; $('sail').classList.add('on'); }
+function showSail(){ if(voyage||inputLock) return; $('sail').classList.add('on'); }
 function hideSail(){ var el=$('sail'); if(el) el.classList.remove('on'); }
 function startVoyage(){
-  if(voyaged||voyage||inputLock) return;
+  if(voyage||inputLock) return false;
   hideSail(); inputLock=true; walkDest=null; dirs.x=dirs.z=0; potVel.x=potVel.z=0;
-  voyage={phase:'embark',t:0,x0:pot.x,z0:pot.z};
+  window.__voyageStarts=(window.__voyageStarts||0)+1;
+  voyage={phase:'embark',t:0,x0:pot.x,z0:pot.z,swapped:false};
+  return true;
 }
 function interact(id){
   if(mode!=='map' || D.open || inputLock) return;
@@ -1504,7 +1509,8 @@ function interact(id){
   talkCount[id]=(talkCount[id]||0)+1;
   if(e.kind==='passer'){ walkDest=null; say(id,[N.tap[talkCount[id]>1?1:0]]); return; }
   if(id==='boat'){
-    if(voyaged || stateOf('boat')!=='active'){ walkDest=null; say('boat',[N.tap[0]]); return; }
+    if(voyage||inputLock) return;
+    if(stateOf('boat')==='busy'){ walkDest=null; say('boat',[N.tap[0]]); return; }
     if(Math.hypot(DOCKX-pot.x, DOCKZ-pot.z)>1.15){ walkDest={x:DOCKX,z:DOCKZ,approach:'boat',stuck:0}; return; }
     walkDest=null; showSail(); return;
   }
@@ -1513,7 +1519,7 @@ function interact(id){
   if(st==='done'){ walkDest=null; var r=N.revisit; say(id,[r[(talkCount[id])%r.length]]); return; }
   if(SCN[id]){
     var stn=SCN[id].stand;
-    if(Math.hypot(pot.x-stn[0], pot.z-stn[1])<0.38 && Math.hypot(potVel.x,potVel.z)<0.45){ potVel.x=potVel.z=0; walkDest=null; freezePotato(); enterScene(id); }
+    if(Math.hypot(pot.x-stn[0], pot.z-stn[1])<0.38 && Math.hypot(potVel.x,potVel.z)<0.45){ potVel.x=potVel.z=0; walkDest=null; freezePotato(id); enterScene(id); }
     else walkDest={x:stn[0],z:stn[1],approach:id,stuck:0};
     return;
   }
@@ -1526,7 +1532,7 @@ function arriveScene(){
   mode='scene';
   var N=NPC_TXT[sceneId], qs=N.qs||[], started=qs.some(function(q){ return answers.some(function(a){ return a.q===q.id; }); });
   var lines=started?[]:N.intro.slice();
-  if(lines.length) say(sceneId,lines,{sub:N.sub,onEnd:afterIntro});
+  if(lines.length) say(sceneId,lines,{onEnd:afterIntro});
   else afterIntro();
 }
 function afterIntro(){
@@ -1666,6 +1672,17 @@ function onPier(x,z){
 function pierWall(x,z){ if(x<=PIER.x0+0.15 || x>=PIER.x1) return false; if(Math.abs(z)>1.65) return false; return !onPier(x,z); }
 function canStand(x,z){ if(pierWall(x,z)) return false; if(onPier(x,z)) return true; return field(x,z)>0.45; }
 function blockedBy(x,z){ for(var i=0;i<COL.length;i++){ var c=COL[i]; if(Math.hypot(x-c.x,z-c.z)<c.r+pot.r) return c; } return null; }
+function blockedOther(x,z,self){ for(var i=0;i<COL.length;i++){ var c=COL[i]; if(c===self) continue; if(Math.hypot(x-c.x,z-c.z)<c.r+0.22) return c; } return null; }
+function nearestFree(x,z){
+  if(canStand(x,z) && !blockedBy(x,z)) return {x:x,z:z};
+  for(var r=0.5;r<=8;r+=0.5){
+    for(var k=0;k<12;k++){
+      var a=k/12*Math.PI*2, qx=x+Math.cos(a)*r, qz=z+Math.sin(a)*r;
+      if(canStand(qx,qz) && !blockedBy(qx,qz) && !onPier(qx,qz)) return {x:qx,z:qz};
+    }
+  }
+  return {x:x,z:z};
+}
 function movePot(dx,dz){
   var nx=pot.x+dx, nz=pot.z+dz;
   if(canStand(nx,pot.z) && !blockedBy(nx,pot.z)) pot.x=nx; else if(canStand(nx,pot.z)){ /* 沿碰撞圆滑开 */ var c=blockedBy(nx,pot.z); var ax=nx-c.x, az=pot.z-c.z, L=Math.hypot(ax,az)||1; var tx=c.x+ax/L*(c.r+pot.r+0.01), tz=c.z+az/L*(c.r+pot.r+0.01); if(canStand(tx,tz)&&!blockedBy(tx,tz)){ pot.x=tx; pot.z=tz; } }
@@ -1693,6 +1710,31 @@ function rollPotato(dx,dz){
   potMesh.m.quaternion.premultiply(q);
 }
 var potVel={x:0,z:0};
+function lineHit(x0,z0,x1,z1){
+  var L=Math.hypot(x1-x0,z1-z0), n=Math.max(1,Math.ceil(L/0.34));
+  for(var i=1;i<=n;i++){
+    var t=i/n, x=x0+(x1-x0)*t, z=z0+(z1-z0)*t;
+    if(!canStand(x,z)) return {x:x,z:z,r:0.55,wall:true};
+    var b=blockedBy(x,z); if(b) return b;
+  }
+  return null;
+}
+function commitBypass(dest){
+  var hit=lineHit(pot.x,pot.z,dest.x,dest.z);
+  if(!hit){ dest.detour=null; return; }
+  if(dest.detour && Math.hypot(dest.detour.x-pot.x,dest.detour.z-pot.z)>0.4) return;
+  var cx=hit.x, cz=hit.z, rad=(hit.r||0.45)+pot.r+0.42;
+  var ang=Math.atan2(pot.z-cz, pot.x-cx), side=dest.side||1, placed=null;
+  for(var k=0;k<2 && !placed;k++){
+    var s=k? -side : side;
+    for(var sweep=0.85; sweep<=2.4 && !placed; sweep+=0.28){
+      var a=ang+s*sweep, qx=cx+Math.cos(a)*rad, qz=cz+Math.sin(a)*rad;
+      if(canStand(qx,qz) && !blockedBy(qx,qz) && !lineHit(pot.x,pot.z,qx,qz)) placed={x:qx,z:qz,side:s};
+    }
+  }
+  if(placed){ dest.detour=placed; dest.side=placed.side; }
+  else dest.side=-side;
+}
 function stepPotato(dt){
   var vx=0, vz=0;
   if(keys.arrowleft||keys.a) vx-=1; if(keys.arrowright||keys.d) vx+=1;
@@ -1700,11 +1742,12 @@ function stepPotato(dt){
   if(dirs.x||dirs.z){ vx=dirs.x; vz=dirs.z; }
   if(walkDest && !vx && !vz){
     var gx=walkDest.x-pot.x, gz=walkDest.z-pot.z, GL=Math.hypot(gx,gz), e=walkDest.ent?ENT[walkDest.ent]:null;
-    if(walkDest.approach && GL<0.42){ var id=walkDest.approach; walkDest=null; potVel.x=potVel.z=0; if(id==='boat') showSail(); else { freezePotato(); enterScene(id); } return; }
+    if(walkDest.approach && GL<0.42){ var id=walkDest.approach; walkDest=null; potVel.x=potVel.z=0; if(id==='boat') showSail(); else { freezePotato(id); enterScene(id); } return; }
     if(e && GL<e.talkR-0.45){ var id2=e.id; walkDest=null; potVel.x=potVel.z=0; interact(id2); }
     else if(!e && !walkDest.approach && GL<0.28){ walkDest=null; potVel.x*=0.2; potVel.z*=0.2; }
     else {
-      if(walkDest.detour && Math.hypot(walkDest.detour.x-pot.x, walkDest.detour.z-pot.z)<0.55) walkDest.detour=null;
+      if(!lineHit(pot.x,pot.z,walkDest.x,walkDest.z)) walkDest.detour=null;
+      else commitBypass(walkDest);
       var tx=walkDest.detour?walkDest.detour.x:walkDest.x, tz=walkDest.detour?walkDest.detour.z:walkDest.z;
       var dx=tx-pot.x, dz=tz-pot.z, L=Math.hypot(dx,dz)||1;
       vx=dx/L; vz=dz/L;
@@ -1729,20 +1772,8 @@ function stepPotato(dt){
         if(Math.hypot(pot.x-bx,pot.z-bz)>step*0.22) progressed=true;
       }
       if(!progressed){
-        potVel.x*=0.45; potVel.z*=0.45;
-        if(walkDest){
-          walkDest.stuck=(walkDest.stuck||0)+dt;
-          if(walkDest.stuck>0.4){
-            var gx=walkDest.x-pot.x, gz=walkDest.z-pot.z, gl=Math.hypot(gx,gz)||1, side=walkDest.side||1;
-            walkDest.side=-side;
-            var sx=-gz/gl*side, sz=gx/gl*side, placed=false;
-            for(var dist=1.4; dist<=4.5 && !placed; dist+=1.2){
-              var qx=pot.x+sx*dist+gx/gl*0.5, qz=pot.z+sz*dist+gz/gl*0.5;
-              if(canStand(qx,qz) && !blockedBy(qx,qz)){ walkDest.detour={x:qx,z:qz}; placed=true; }
-            }
-            walkDest.stuck=0;
-          }
-        }
+        potVel.x*=0.5; potVel.z*=0.5;
+        if(walkDest){ walkDest.stuck=(walkDest.stuck||0)+dt; if(walkDest.stuck>0.35){ walkDest.detour=null; walkDest.side=-(walkDest.side||1); commitBypass(walkDest); walkDest.stuck=0; } }
       }
       else if(walkDest) walkDest.stuck=0;
     } else if(walkDest) walkDest.stuck=0;
@@ -1759,7 +1790,7 @@ var PLATES=[
   {t:'风儿的回声小屋',x:SPOT.hut.x,y:6.9,z:SPOT.hut.z,r:12}
 ].map(function(p){ var el=document.createElement('div'); el.className='plate glow'; el.textContent=p.t; ov.appendChild(el); p.el=el; return p; });
 var MARKS={}, camUp=new T.Vector3();
-function headPos(e,f){ camUp.set(0,1,0).applyQuaternion(camera.quaternion); var frac=(e.crown==null?0.9:e.crown); return e.g.position.clone().addScaledVector(camUp, e.h*frac+0.18); }
+function headPos(e,f){ camUp.set(0,1,0).applyQuaternion(camera.quaternion); var frac=(e.crown==null?0.9:e.crown); return e.g.position.clone().addScaledVector(camUp, e.h*frac+0.34); }
 function markEl(id){ if(MARKS[id]) return MARKS[id]; var el=document.createElement('div'); el.className='mark'; el.innerHTML='<i></i>'; ov.appendChild(el); MARKS[id]=el; return el; }
 var LOCS=[['闪烁树洞',SPOT.hole,9],['拼装码头',{x:CX-2,z:0},9],['回声小屋',SPOT.hut,9]];
 function updateOverlay(){
@@ -1813,8 +1844,8 @@ function stepPassers(dt,t){
       var dx=w.tx-s.x, dz=w.tz-s.z, L=Math.hypot(dx,dz);
       if(L<0.12){ w.wait=rr(0.8,2.2); for(var k=0;k<12;k++){ var nx=s.x+rr(-3.2,3.2), nz=s.z+rr(-2.4,2.4); if(canStand(nx,nz)&&!onPier(nx,nz)&&field(nx,nz)>0.8){ w.tx=nx; w.tz=nz; break; } } }
       else {
-        var sp=0.42*dt, nx2=s.x+dx/L*sp, nz2=s.z+dz/L*sp, blocked=!canStand(nx2,nz2)||!!blockedBy(nx2,nz2)||Math.hypot(nx2-pot.x,nz2-pot.z)<pot.r+0.62;
-        if(!blocked && (mode==='scene'||mode==='down')){ var scp=screenOf(new T.Vector3(nx2,1.0,nz2)); if(scp.z<1 && Math.abs(scp.x-W*0.5)<70 && scp.y>H*0.25 && scp.y<H*0.75) blocked=true; }
+        var sp=0.42*dt, nx2=s.x+dx/L*sp, nz2=s.z+dz/L*sp, blocked=!canStand(nx2,nz2)||!!blockedOther(nx2,nz2,s.col)||Math.hypot(nx2-pot.x,nz2-pot.z)<0.7;
+        if(!blocked && (mode==='scene'||mode==='down')){ var scp=screenOf(new T.Vector3(nx2,1.0,nz2)); var nearCam=Math.hypot(s.x-camera.position.x, s.z-camera.position.z)<7; if(nearCam && scp.z<1 && Math.abs(scp.x-W*0.5)<100 && scp.y>H*0.28 && scp.y<H*0.72) blocked=true; }
         if(blocked){ var ang=Math.atan2(dz,dx)+(w.turn||1)*1.6; w.turn=-(w.turn||1); w.tx=s.x+Math.cos(ang)*2.4; w.tz=s.z+Math.sin(ang)*2.4; }
         else { s.x=nx2; s.z=nz2; s.dir=dx; }
       }
@@ -1864,19 +1895,28 @@ function stepVoyage(dt){
     paperBoat.position.x=BOATX; paperBoat.position.z=lerp(BOATZ,BOATZ+1.35,e); paperBoat.rotation.z=Math.sin(k*3.1)*0.05;
     if(v.t>=0.95){ v.phase='cover'; v.t=0; }
   } else if(v.phase==='cover'){
-    v.t+=dt; var c=clamp(v.t/1.25,0,1);
-    veil.style.opacity=String(smooth(0,1,c)); veil.style.pointerEvents='auto';
-    paperBoat.position.z=BOATZ+1.35+c*0.9; pot.x=BOATX; pot.z=paperBoat.position.z-0.15;
-    if(c>=1){
+    v.t+=dt; var c=clamp(v.t/1.05,0,1);
+    veil.style.opacity=String(c>=1?1:smooth(0,1,c)); veil.style.pointerEvents='auto';
+    paperBoat.position.z=BOATZ+1.35+Math.min(c,0.99)*0.9; pot.x=BOATX; pot.z=paperBoat.position.z-0.15;
+    if(c>=1){ v.phase='hold'; v.t=0; veil.style.opacity='1'; }
+  } else if(v.phase==='hold'){
+    v.t+=dt; veil.style.opacity='1'; veil.style.pointerEvents='auto';
+    if(!v.swapped && v.t>=0.25){
+      var before={x:+pot.x.toFixed(2),z:+pot.z.toFixed(2)};
+      var op=parseFloat(getComputedStyle(veil).opacity);
       var sp=DEST.mist.spawn();
       pot.x=sp.x; pot.z=sp.z;
       paperBoat.position.set(BOATX,0.04,BOATZ); paperBoat.rotation.set(0,Math.PI/2,0);
-      voyaged=true; routeIdx=ROUTE.length; sceneId=null; trans=0;
+      sceneId=null; trans=0; v.swapped=true;
       camFollow.set(pot.x,potHeight(pot.x,pot.z),pot.z);
-      flyFrom=DEST.mist.pose(); revealT=0; mode='reveal'; v.phase='reveal';
+      flyFrom=DEST.mist.pose();
+      window.__voyageLog=window.__voyageLog||[];
+      window.__voyageLog.push({opacity:op, style:veil.style.opacity, before:before, after:{x:+pot.x.toFixed(2),z:+pot.z.toFixed(2)}});
     }
+    if(v.swapped && v.t>=0.7){ revealT=0; mode='reveal'; v.phase='reveal'; }
   } else if(v.phase==='reveal'){
-    veil.style.opacity=String(1-smooth(0,1,clamp(revealT/0.5,0,1)));
+    var fade=smooth(0,1,clamp((revealT-0.08)/0.42,0,1));
+    veil.style.opacity=String(1-fade);
     if(mode!=='reveal'){ veil.style.opacity='0'; veil.style.pointerEvents='none'; voyage=null; inputLock=false; }
   }
 }
@@ -2043,6 +2083,12 @@ window.__v5={
   stand:function(id){ var s=SCN[id]&&SCN[id].stand; return s?{x:+s[0].toFixed(2),z:+s[1].toFixed(2)}:null; },
   project:function(x,y,z){ var p=screenOf(new T.Vector3(x,y||1,z)); return {x:p.x,y:p.y,z:p.z}; },
   dock:function(){ return {x:DOCKX,z:DOCKZ,bx:BOATX,bz:BOATZ}; },
+  place:function(){ return document.getElementById('dPlace').textContent; },
+  locked:function(){ return !!inputLock || !!voyage; },
+  voyageLog:function(){ return (window.__voyageLog||[]).slice(); },
+  voyageStarts:function(){ return window.__voyageStarts||0; },
+  passers:function(){ var g=ENT.gull, sn=ENT.snail; return {gull:g?{state:g.state,y:+(g.y||0).toFixed(2),x:+g.x.toFixed(2),z:+g.z.toFixed(2)}:null, snail:sn?{x:+sn.x.toFixed(2),z:+sn.z.toFixed(2)}:null}; },
+  answerText:function(){ return answers.map(function(a){ return a.q+' '+a.code+' '+a.text; }); },
   walk:function(dx,dz,sec){ dirs.x=dx; dirs.z=dz; setTimeout(function(){ dirs.x=dirs.z=0; },sec*1000); },
   blockedAt:function(x,z){ return !!blockedBy(x,z) || !canStand(x,z); },
   ent:function(id){ var e=ENT[id]; return {x:e.x,z:e.z}; },
